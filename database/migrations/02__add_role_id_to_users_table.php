@@ -1,0 +1,28 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        $userTable = config('permission-engine.user_table', 'users');
+
+        Schema::table($userTable, function (Blueprint $table) {
+            $table->foreignId('role_id')->nullable()->constrained()->nullOnDelete()->after('id');
+        });
+    }
+
+    public function down(): void
+    {
+        $userTable = config('permission-engine.user_table', 'users');
+
+        Schema::table($userTable, function (Blueprint $table) {
+            $table->dropConstrainedForeignId('role_id');
+        });
+    }
+};
