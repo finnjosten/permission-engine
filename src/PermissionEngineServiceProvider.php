@@ -21,6 +21,7 @@ class PermissionEngineServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
+        $this->loadFactoriesFrom(__DIR__ . '/Database/Factories');
 
         $this->publishes([
             __DIR__ . '/../config/permission-engine.php' => config_path('permission-engine.php'),
@@ -29,6 +30,10 @@ class PermissionEngineServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__ . '/../database/migrations' => database_path('migrations'),
         ], 'permission-engine-migrations');
+
+        $this->publishes([
+            __DIR__ . '/Seeders/RoleSeeder.php' => database_path('seeders/RoleSeeder.php'),
+        ], 'permission-engine-seeders');
 
         if ($this->app->runningInConsole()) {
             $this->commands([
