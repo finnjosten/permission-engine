@@ -24,4 +24,17 @@ return [
 
     'user_table' => 'users',
 
+    /*
+    |--------------------------------------------------------------------------
+    | Permission Prefix Property
+    |--------------------------------------------------------------------------
+    |
+    | Classes that define this property get their `$this->can('action')` calls
+    | prefixed during `permission:refresh`, e.g. `resources.action`.
+    | Set to null to disable prefixing.
+    |
+    */
+
+    'prefix_property' => 'permissionPrefix',
+
 ];

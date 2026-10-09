@@ -45,30 +45,15 @@ class SyncDiscoveredPermissions implements ShouldQueue
 
     /**
      * Generate wildcard and deny variants from discovered permissions.
-     *
-     * "post.create.special" -> !post.create.special, post.create.*, !post.create.*, post.*, !post.*, *, !*
      */
     protected function generateWildcardVariants(): array
     {
         $variants = [];
 
         foreach ($this->permissions as $name) {
-            // Skip if already a wildcard or deny
-            if (str_contains($name, '*') || str_starts_with($name, '!')) {
-                continue;
+            foreach (Permission::variantsFor($name) as $variant) {
+                $variants[$variant] = true;
             }
-
-            $segments = explode('.', $name);
-
-            for ($i = count($segments) - 1; $i >= 1; $i--) {
-                $prefix = implode('.', array_slice($segments, 0, $i));
-                $variants["{$prefix}.*"] = true;
-                $variants["!{$prefix}.*"] = true;
-            }
-
-            $variants['*'] = true;
-            $variants['!*'] = true;
-            $variants["!{$name}"] = true;
         }
 
         return array_keys($variants);

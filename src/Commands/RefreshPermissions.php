@@ -38,19 +38,8 @@ class RefreshPermissions extends Command
                 ['last_seen_at' => $now],
             );
 
-            // Generate wildcard variants
-            if (!str_contains($name, '*') && !str_starts_with($name, '!')) {
-                $segments = explode('.', $name);
-
-                for ($i = count($segments) - 1; $i >= 1; $i--) {
-                    $prefix = implode('.', array_slice($segments, 0, $i));
-                    $wildcards["{$prefix}.*"] = true;
-                    $wildcards["!{$prefix}.*"] = true;
-                }
-
-                $wildcards['*'] = true;
-                $wildcards['!*'] = true;
-                $wildcards["!{$name}"] = true;
+            foreach (Permission::variantsFor($name) as $variant) {
+                $wildcards[$variant] = true;
             }
         }
 
@@ -68,7 +57,7 @@ class RefreshPermissions extends Command
     }
 
     /**
-     * Scan PHP files for permission('...') calls.
+     * Scan PHP files for permission('...') and can('...') calls.
      *
      * @return string[]
      */
@@ -79,6 +68,7 @@ class RefreshPermissions extends Command
             base_path('routes'),
         ];
 
+        $property = config('permission-engine.prefix_property', 'permissionPrefix');
         $permissions = [];
 
         foreach ($paths as $path) {
@@ -90,6 +80,7 @@ class RefreshPermissions extends Command
 
             foreach ($finder as $file) {
                 $content = $file->getContents();
+                $prefix = $property ? $this->detectPrefix($content, $property) : null;
 
                 // Match permission('...') and permission("...")
                 if (preg_match_all('/\bpermission\(\s*[\'"]([^\'"]+)[\'"]\s*\)/', $content, $matches)) {
@@ -98,8 +89,16 @@ class RefreshPermissions extends Command
                     }
                 }
 
-                // Match $user->can('...') and Gate::allows('...')
-                if (preg_match_all('/(?:->can|Gate::allows|Gate::check|Gate::authorize)\(\s*[\'"]([^\'"]+)[\'"]\s*\)/', $content, $matches)) {
+                // Match $this->can('...', ...) and apply the class prefix
+                if (preg_match_all('/\$this->can\(\s*[\'"]([^\'"]+)[\'"]\s*(?:,([^)]*))?/', $content, $matches, PREG_SET_ORDER)) {
+                    foreach ($matches as $match) {
+                        $ignorePrefix = $this->ignoresPrefix($match[2] ?? '');
+                        $permissions[$this->applyPrefix($match[1], $ignorePrefix ? null : $prefix)] = true;
+                    }
+                }
+
+                // Match $user->can('...') and Gate::allows('...'), taken literally
+                if (preg_match_all('/(?:(?<!\$this)->can|Gate::allows|Gate::check|Gate::authorize)\(\s*[\'"]([^\'"]+)[\'"]/', $content, $matches)) {
                     foreach ($matches[1] as $match) {
                         $permissions[$match] = true;
                     }
@@ -108,5 +107,57 @@ class RefreshPermissions extends Command
         }
 
         return array_keys($permissions);
+    }
+
+    /**
+     * Find `protected $permissionPrefix = '...';` (any visibility, optional type) in a file.
+     */
+    protected function detectPrefix(string $content, string $property): ?string
+    {
+        $pattern = '/(?:public|protected|private)\s+(?:\??string\s+)?\$' . preg_quote($property, '/') . '\s*=\s*[\'"]([^\'"]*)[\'"]/';
+
+        if (!preg_match($pattern, $content, $match)) {
+            return null;
+        }
+
+        $prefix = trim($match[1], '.');
+
+        return $prefix === '' ? null : $prefix;
+    }
+
+    /**
+     * Whether the extra arguments of a `$this->can()` call disable the prefix.
+     * Expected signature: can(string $permission, bool $abort = true, bool $ignorePrefix = false)
+     */
+    protected function ignoresPrefix(string $args): bool
+    {
+        if (preg_match('/\bignorePrefix\s*:\s*true\b/i', $args)) {
+            return true;
+        }
+
+        // Named arguments other than ignorePrefix say nothing about the prefix
+        $positional = array_values(array_filter(
+            array_map('trim', explode(',', $args)),
+            fn (string $arg) => $arg !== '' && !preg_match('/^\w+\s*:/', $arg),
+        ));
+
+        // $args holds everything after the permission, so index 1 is the 3rd argument
+        return strtolower($positional[1] ?? '') === 'true';
+    }
+
+    /**
+     * Mirror of the app's Controller::resolvePermissionName().
+     */
+    protected function applyPrefix(string $permission, ?string $prefix): string
+    {
+        if ($prefix === null) {
+            return $permission;
+        }
+
+        if ($permission === $prefix || str_starts_with($permission, $prefix . '.')) {
+            return $permission;
+        }
+
+        return $prefix . '.' . ltrim($permission, '.');
     }
 }

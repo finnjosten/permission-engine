@@ -27,4 +27,34 @@ class Permission extends Model
     {
         return $this->belongsToMany(Role::class);
     }
+
+    /**
+     * Generate the wildcard and deny variants of a permission.
+     *
+     * "post.create.special" -> post.create.*, !post.create.*, post.*, !post.*, *, !*, !post.create.special
+     *
+     * @return string[]
+     */
+    public static function variantsFor(string $name): array
+    {
+        // Skip if already a wildcard or deny
+        if (str_contains($name, '*') || str_starts_with($name, '!')) {
+            return [];
+        }
+
+        $variants = [];
+        $segments = explode('.', $name);
+
+        for ($i = count($segments) - 1; $i >= 1; $i--) {
+            $prefix = implode('.', array_slice($segments, 0, $i));
+            $variants[] = "{$prefix}.*";
+            $variants[] = "!{$prefix}.*";
+        }
+
+        $variants[] = '*';
+        $variants[] = '!*';
+        $variants[] = "!{$name}";
+
+        return $variants;
+    }
 }

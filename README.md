@@ -60,7 +60,7 @@ Every command asks for missing arguments interactively, and also works with `--n
 
 | Command | Description |
 |---|---|
-| `permission:refresh` | Scan `app/` and `routes/` for `permission()` / `->can()` calls and sync them to the database |
+| `permission:refresh` | Scan `app/` and `routes/` for `permission()` / `->can()` / `Gate::allows()` calls and sync them to the database |
 | `role:create {name?} {--permission=*}` | Create a role, optionally with permissions |
 | `role:permissions {role?} {--add=*} {--remove=*} {--sync}` | Add or remove permissions on a role, without flags it opens an interactive loop |
 | `role:list` | List all roles with their user count and permissions |
@@ -75,3 +75,28 @@ php artisan role:list
 php artisan user:role john@example.com Editor
 php artisan user:role john@example.com none
 ```
+
+## Permission prefixes
+If a class declares a `$permissionPrefix` property, `permission:refresh` prefixes its `$this->can('...')` calls with it, the same way a base controller helper would at runtime:
+
+```PHP
+class ResourceController extends Controller
+{
+    protected $permissionPrefix = 'resources';
+
+    public function index()
+    {
+        $this->can('index');                           // resources.index
+        $this->can('resources.show');                  // already prefixed, stays resources.show
+        $this->can('global.thing', false, true);       // 3rd argument true: no prefix
+        $this->can('other.thing', ignorePrefix: true); // named argument: no prefix
+    }
+}
+```
+
+The scanner expects the helper signature `can(string $permission, bool $abort = true, bool $ignorePrefix = false)`.
+`permission('...')`, `$user->can('...')` and `Gate::allows/check/authorize('...')` are always saved literally.
+
+The property name is set with `prefix_property` in `config/permission-engine.php` (default `permissionPrefix`). Set it to `null` to disable prefixing.
+
+**Limitation:** the prefix is only read from the file itself. A class that inherits `$permissionPrefix` from a parent without declaring it again gets no prefix during the scan.
