@@ -2,7 +2,11 @@
 
 namespace Finn\PermissionEngine;
 
+use Finn\PermissionEngine\Commands\AssignUserRole;
+use Finn\PermissionEngine\Commands\CreateRole;
+use Finn\PermissionEngine\Commands\ListRoles;
 use Finn\PermissionEngine\Commands\RefreshPermissions;
+use Finn\PermissionEngine\Commands\RolePermissions;
 use Finn\PermissionEngine\Jobs\SyncDiscoveredPermissions;
 use Finn\PermissionEngine\Middleware\LoadPermissions;
 use Illuminate\Support\Facades\Gate;
@@ -38,6 +42,10 @@ class PermissionEngineServiceProvider extends ServiceProvider
         if ($this->app->runningInConsole()) {
             $this->commands([
                 RefreshPermissions::class,
+                CreateRole::class,
+                RolePermissions::class,
+                ListRoles::class,
+                AssignUserRole::class,
             ]);
         }
 
